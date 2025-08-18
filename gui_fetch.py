@@ -25,6 +25,7 @@ def change_tree_dict_to_json(launch_fn, tree_dict):
             json_item = {"Stanok": inc + 1, "bommod": mod, "mtypes": []}
             for var in var_list:
                 json_item["mtypes"].append({"quantity": var[1], "var": var[0]})
+                
             json_lst.append(json_item)
     return json_lst
 
@@ -628,6 +629,7 @@ class Window(QMainWindow, Ui_mainWindow):
         self.settings.setValue('lastState', self.state)
         self.settings.setValue('lastReportState', self.report_state)
         self.settings.setValue('lastSelectedModule', self.selected_mod)
+        self.settings.setValue('tempFile', self.temp_file_name)
         self.settings.setValue('font', self.text.font())
         self.settings.sync()
         super().closeEvent(event)
