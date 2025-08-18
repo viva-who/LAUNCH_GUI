@@ -179,9 +179,12 @@ class MyTreeWidget(QTreeWidget):
         self.item_dropped.emit()
 
     def dropEvent(self, event):
-        super().dropEvent(event)
-        self.update_dict(self.zapusk)
-        self.drop_handle()
+        if self.itemAt(event.pos()):
+            super().dropEvent(event)
+            self.update_dict(self.zapusk)
+            self.drop_handle()
+        else:
+            event.ignore()
 
     def update_dict(self, zapusk):
         inc = 0
@@ -277,7 +280,7 @@ class Window(QMainWindow, Ui_mainWindow):
         self.state = None
         self.report_state = None
         self.selected_mod = None
-        self.temp_file_name = None
+        self.temp_file_name = ''
         self.temp_json = None
         self.launch_file_name = ''
         self.tree_dict = None
@@ -385,9 +388,17 @@ class Window(QMainWindow, Ui_mainWindow):
                 self.setWindowState(Qt.WindowMinimized)
             elif window_state == Qt.WindowMaximized:
                 self.setWindowState(Qt.WindowMaximized)
-        self.temp_json = self.settings.value('json')
-        self.temp_file_name = self.settings.value('tempFile')
         self.launch_file_name = self.settings.value('lastOpenedFile')
+        parts = self.launch_file_name.split('.')
+        parts.insert(1, '_tmp.')
+        self.temp_file_name = ''.join(parts)
+        new_file = open(self.temp_file_name, 'w', encoding='utf-16')
+        with open(self.launch_file_name, 'r', encoding='utf-16') as file:
+            lines = file.readlines()
+            file.close()
+        new_file.write(''.join(lines))
+        self.temp_json = json.loads(''.join(lines))
+        new_file.close()
         if self.launch_file_name:
             subwindow = QMdiSubWindow()
             subwindow.setWindowTitle(self.launch_file_name)
@@ -436,7 +447,7 @@ class Window(QMainWindow, Ui_mainWindow):
         if self.font:
             self.text.setFont(self.font)
         else:
-            self.font = QFont('Courier', 8)
+            self.font = QFont('Courier', 10)
             self.text.setFont(self.font)
 
     def open_file_selection(self):
@@ -458,7 +469,7 @@ class Window(QMainWindow, Ui_mainWindow):
         parts = self.launch_file_name.split('.')
         parts.insert(1, '_tmp.')
         self.temp_file_name = ''.join(parts)
-        new_file = open(self.temp_file_name, 'w+', encoding='utf-16')
+        new_file = open(self.temp_file_name, 'w', encoding='utf-16')
         with open(self.launch_file_name, 'r', encoding='utf-16') as file:
             lines = file.readlines()
             file.close()
@@ -549,7 +560,7 @@ class Window(QMainWindow, Ui_mainWindow):
             for var in self.temp_json[needed_index]['mtypes']:
                 var['quantity'] = mod.child(inc).text(1)
                 inc += 1
-        with open(self.temp_file_name, 'w+', encoding='utf-16') as temp_file:
+        with open(self.temp_file_name, 'w', encoding='utf-16') as temp_file:
             s = json.dumps(self.temp_json, indent=0)
             temp_file.write(s)
             temp_file.close()
@@ -558,15 +569,10 @@ class Window(QMainWindow, Ui_mainWindow):
         self.save_zapusk_action.setEnabled(True)
         self.tree_dict = self.my_treeWidget.tree_dict
         self.temp_json = change_tree_dict_to_json(self.launch_file_name, self.tree_dict)
-        with open(self.temp_file_name, 'w+', encoding='utf-16') as temp_file:
+        with open(self.temp_file_name, 'w', encoding='utf-16') as temp_file:
             s = json.dumps(self.temp_json, indent=0)
             temp_file.write(s)
             temp_file.close()
-
-    # def move_mod(self):
-    #     if self.selected_mod:
-    #
-    #         dlg = MoveDialog()
 
     def save_zapusk(self):
         q = QMessageBox()

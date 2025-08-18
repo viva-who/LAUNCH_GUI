@@ -3,7 +3,7 @@ from CDesignator import CDesignator
 from tkinter import *
 import tkinter as tk
 import tkinter.ttk as ttk
-from tktooltip import ToolTip
+from TkToolTip import ToolTip
 
 # Класс отрисовки электронного модуля
 class CModDraw():
