@@ -95,9 +95,8 @@ class MyTreeWidget(QTreeWidget):
         delegate = MyDelegate()
         self.setItemDelegate(delegate)
 
-    def build_tree(self, zapusk):
+    def build_tree(self, zapusk, data):
         self.zapusk = zapusk
-        data = zapusk.mod_bom
         self.setColumnCount(2)
         self.setHeaderLabels(['Запуски', 'Кол-во'])
         self.setColumnWidth(0, 190)
@@ -267,6 +266,16 @@ class MyTreeWidget(QTreeWidget):
                 for var in range(zap_item.child(st).child(mod).childCount()):
                     zap_item.child(st).child(mod).child(var).setExpanded(True)
 
+    def contextMenuEvent(self, event):
+        menu = QMenu()
+        del_stanok_action = QAction('Удалить станок')
+        menu.addAction(del_stanok_action)
+        action = menu.exec_(event.globalPos())
+        if action == del_stanok_action:
+            stanok = self.itemAt(event.pos())
+            self.topLevelItem(0).removeChild(stanok)
+            del stanok
+
 
 class Window(QMainWindow, Ui_mainWindow):
     def __init__(self, parent=None):
@@ -305,7 +314,7 @@ class Window(QMainWindow, Ui_mainWindow):
         self.add_stanok_action = QAction(plus_icon, 'Добавить', self)
         self.change_font_action = QAction(font_icon, 'Шрифт', self)
         self.save_zapusk_action = QAction(save_icon, 'Сохранить', self)
-        self.close_zapusk_action = QAction(close_icon, 'Удалить', self)
+        self.close_zapusk_action = QAction(close_icon, 'Закрыть', self)
         self.move_mod_action = QAction(move_icon, 'Переместить', self)
         self.spec_label = QLabel()
         self.spec_label.setText('Спецификации')
@@ -357,6 +366,11 @@ class Window(QMainWindow, Ui_mainWindow):
         self.connect_signals()
         self.restore_state()
         self.mdiArea.setViewMode(QMdiArea.TabbedView)
+        self.mdiArea.setTabsClosable(True)
+        if self.launch_file_name == '':
+            self.change_font_action.setEnabled(False)
+            self.close_zapusk_action.setEnabled(False)
+            self.add_stanok_action.setEnabled(False)
 
     def connect_signals(self):
         self.action.triggered.connect(self.open_file_selection)
@@ -370,11 +384,11 @@ class Window(QMainWindow, Ui_mainWindow):
         self.mod_button.clicked.connect(self.print_rpt_allMS)
         self.pack_type_button.clicked.connect(self.print_rpt_SMD_pack)
         self.stanok_button.clicked.connect(self.print_rpt_stanoks)
-        # self.add_stanok_action.triggered.connect(self.add_stanok)
+        self.add_stanok_action.triggered.connect(self.add_stanok)
         self.change_font_action.triggered.connect(self.change_font)
         self.save_zapusk_action.triggered.connect(self.save_zapusk)
         self.action_2.triggered.connect(self.save_zapusk)
-        # self.close_zapusk_action.triggered.connect(self.close_zapusk)
+        self.close_zapusk_action.triggered.connect(self.close_zapusk)
         # self.move_mod_action.triggered.connect(self.move_mod)
 
     def restore_state(self):
@@ -390,17 +404,17 @@ class Window(QMainWindow, Ui_mainWindow):
             elif window_state == Qt.WindowMaximized:
                 self.setWindowState(Qt.WindowMaximized)
         self.launch_file_name = self.settings.value('lastOpenedFile')
-        parts = self.launch_file_name.split('.')
-        parts.insert(1, '_tmp.')
-        self.temp_file_name = ''.join(parts)
-        new_file = open(self.temp_file_name, 'w', encoding='utf-16')
-        with open(self.launch_file_name, 'r', encoding='utf-16') as file:
-            lines = file.readlines()
-            file.close()
-        new_file.write(''.join(lines))
-        self.temp_json = json.loads(''.join(lines))
-        new_file.close()
-        if self.launch_file_name:
+        if self.launch_file_name != '':
+            parts = self.launch_file_name.split('.')
+            parts.insert(1, '_tmp.')
+            self.temp_file_name = ''.join(parts)
+            new_file = open(self.temp_file_name, 'w', encoding='utf-16')
+            with open(self.launch_file_name, 'r', encoding='utf-16') as file:
+                lines = file.readlines()
+                file.close()
+            new_file.write(''.join(lines))
+            self.temp_json = json.loads(''.join(lines))
+            new_file.close()
             subwindow = QMdiSubWindow()
             subwindow.setWindowTitle(self.launch_file_name)
             subwindow.setObjectName(self.launch_file_name)
@@ -410,7 +424,7 @@ class Window(QMainWindow, Ui_mainWindow):
             self.mdiArea.setActiveSubWindow(subwindow)
             self.zapusk = CLaunch(self.launch_file_name)
             self.my_treeWidget.zapusk = self.zapusk
-            self.my_treeWidget.build_tree(self.zapusk)
+            self.my_treeWidget.build_tree(self.zapusk, self.zapusk.mod_bom)
         self.state = self.settings.value('lastState')
         if self.state:
             self.statusbar.showMessage(self.state)
@@ -452,6 +466,11 @@ class Window(QMainWindow, Ui_mainWindow):
             self.text.setFont(self.font)
 
     def open_file_selection(self):
+        self.change_font_action.setEnabled(True)
+        self.close_zapusk_action.setEnabled(True)
+        self.add_stanok_action.setEnabled(True)
+        if self.launch_file_name != '':
+            self.close_zapusk()
         dialog = QFileDialog()
         file = dialog.getOpenFileName(
             None,
@@ -460,12 +479,14 @@ class Window(QMainWindow, Ui_mainWindow):
             '"ZAP" files (*.zap)'
         )
         self.launch_file_name = file[0].split('/')[-1]
+        self.my_treeWidget.setHeaderHidden(False)
         subwindow = QMdiSubWindow()
         subwindow.setWindowTitle(self.launch_file_name)
         subwindow.setObjectName(self.launch_file_name)
         self.mdiArea.addSubWindow(subwindow)
         subwindow.setGeometry(0, 0, 887, 671)
         subwindow.showMaximized()
+        subwindow.setWidget(self.text)
         self.zapusk = CLaunch(self.launch_file_name)
         parts = self.launch_file_name.split('.')
         parts.insert(1, '_tmp.')
@@ -477,8 +498,9 @@ class Window(QMainWindow, Ui_mainWindow):
         new_file.write(''.join(lines))
         self.temp_json = json.loads(''.join(lines))
         new_file.close()
-        self.my_treeWidget.build_tree(self.zapusk)
+        self.my_treeWidget.build_tree(self.zapusk, self.zapusk.mod_bom)
         self.tree_dict = self.my_treeWidget.tree_dict
+        self.text.insertPlainText(self.zapusk.rpt())
 
     def handle_tree_items(self, item):
         if item.text(0)[-1:-5:-1] == 'paz.':
@@ -606,6 +628,47 @@ class Window(QMainWindow, Ui_mainWindow):
                 self.report_state = 'zapusk'
                 self.text.insertPlainText(self.zapusk.rpt())
             self.save_zapusk_action.setEnabled(False)
+
+    def close_zapusk(self):
+        if self.save_zapusk_action.isEnabled():
+            save_dlg = QMessageBox()
+            save_dlg.setWindowTitle('Закрыть запуск')
+            save_dlg.setText(f'Сохранить несохранённые изменения в файле {self.launch_file_name} перед закрытием?')
+            save_dlg.setIcon(QMessageBox.Question)
+            save_dlg.setStandardButtons(QMessageBox.Save | QMessageBox.Close)
+            button = save_dlg.exec()
+            if button == QMessageBox.Save:
+                with open(self.temp_file_name, 'r', encoding='utf-16') as temp_file:
+                    with open(self.launch_file_name, 'w', encoding='utf-16') as file:
+                        lines = temp_file.readlines()
+                        file.write(''.join(lines))
+                        file.close()
+                        temp_file.close()
+        self.zapusk = None
+        self.state = None
+        self.report_state = None
+        self.selected_mod = None
+        self.temp_file_name = ''
+        self.temp_json = None
+        self.launch_file_name = ''
+        self.tree_dict = None
+        self.text.clear()
+        sw = self.mdiArea.currentSubWindow()
+        if sw:
+            sw.close()
+        self.my_treeWidget.clear()
+        self.my_treeWidget.setHeaderHidden(True)
+        self.change_font_action.setEnabled(False)
+        self.close_zapusk_action.setEnabled(False)
+        self.add_stanok_action.setEnabled(False)
+
+    def add_stanok(self):
+        if self.my_treeWidget.topLevelItem(0):
+            new_stanok = QTreeWidgetItem()
+            needed_num_of_stanok = self.my_treeWidget.topLevelItem(0).childCount() + 1
+            new_stanok.setText(0, f'Станок {needed_num_of_stanok}')
+            new_stanok.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDropEnabled)
+            self.my_treeWidget.topLevelItem(0).addChild(new_stanok)
 
     def closeEvent(self, event):
         if self.save_zapusk_action.isEnabled():
